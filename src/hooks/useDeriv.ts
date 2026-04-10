@@ -39,81 +39,97 @@ export function useDeriv() {
   const subscriptions = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const ws = new WebSocket(DERIV_WS_URL);
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: NodeJS.Timeout;
 
-    ws.onopen = () => {
-      setIsConnected(true);
-      setError(null);
-      ws.send(JSON.stringify({ active_symbols: 'brief', product_type: 'basic' }));
+    const connect = () => {
+      ws = new WebSocket(DERIV_WS_URL);
+
+      ws.onopen = () => {
+        setIsConnected(true);
+        setError(null);
+        ws?.send(JSON.stringify({ active_symbols: 'brief', product_type: 'basic' }));
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.error) {
+          setError(data.error.message);
+          return;
+        }
+
+        switch (data.msg_type) {
+          case 'active_symbols':
+            setActiveSymbols(data.active_symbols);
+            break;
+          case 'authorize':
+            setIsAuthorized(true);
+            setAccount(data.authorize);
+            break;
+          case 'tick':
+            const tick = data.tick;
+            setTicks((prev) => {
+              const symbolTicks = prev[tick.symbol] || [];
+              const newTicks = [...symbolTicks, {
+                symbol: tick.symbol,
+                quote: tick.quote,
+                epoch: tick.epoch,
+                id: tick.id
+              }].slice(-100);
+              return { ...prev, [tick.symbol]: newTicks };
+            });
+            break;
+          case 'buy':
+            const buyInfo = data.buy;
+            setPositions(prev => [...prev, {
+              contract_id: buyInfo.contract_id,
+              symbol: buyInfo.shortcode.split('_')[1],
+              buy_price: buyInfo.buy_price,
+              entry_tick: buyInfo.start_time,
+              contract_type: buyInfo.shortcode.split('_')[0],
+              status: 'open'
+            }]);
+            break;
+          case 'proposal':
+            if (data.proposal && ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                buy: data.proposal.id,
+                price: data.proposal.ask_price
+              }));
+            }
+            break;
+        }
+      };
+
+      ws.onclose = (event) => {
+        setIsConnected(false);
+        setIsAuthorized(false);
+        setSocket(null);
+        
+        // Clear any existing timeout to prevent multiple reconnection loops
+        if (reconnectTimeout) clearTimeout(reconnectTimeout);
+
+        // Don't reconnect if it was a clean close (e.g., component unmount)
+        if (!event.wasClean) {
+          console.log('WebSocket closed unexpectedly. Attempting to reconnect in 3s...', event.reason);
+          reconnectTimeout = setTimeout(connect, 3000);
+        }
+      };
+
+      ws.onerror = (event) => {
+        console.error('Deriv WebSocket Error:', event);
+        setError('Connection lost. We are trying to bring you back online...');
+      };
+
+      setSocket(ws);
     };
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
-      if (data.error) {
-        setError(data.error.message);
-        return;
-      }
-
-      switch (data.msg_type) {
-        case 'active_symbols':
-          setActiveSymbols(data.active_symbols);
-          break;
-        case 'authorize':
-          setIsAuthorized(true);
-          setAccount(data.authorize);
-          // Subscribe to portfolio/proposals if needed
-          break;
-        case 'tick':
-          const tick = data.tick;
-          setTicks((prev) => {
-            const symbolTicks = prev[tick.symbol] || [];
-            const newTicks = [...symbolTicks, {
-              symbol: tick.symbol,
-              quote: tick.quote,
-              epoch: tick.epoch,
-              id: tick.id
-            }].slice(-100);
-            return { ...prev, [tick.symbol]: newTicks };
-          });
-          break;
-        case 'buy':
-          const buyInfo = data.buy;
-          setPositions(prev => [...prev, {
-            contract_id: buyInfo.contract_id,
-            symbol: buyInfo.shortcode.split('_')[1],
-            buy_price: buyInfo.buy_price,
-            entry_tick: buyInfo.start_time,
-            contract_type: buyInfo.shortcode.split('_')[0],
-            status: 'open'
-          }]);
-          break;
-        case 'proposal':
-          // Automatically buy the proposal for now (MVP behavior)
-          if (data.proposal && socket && socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({
-              buy: data.proposal.id,
-              price: data.proposal.ask_price
-            }));
-          }
-          break;
-      }
-    };
-
-    ws.onclose = () => {
-      setIsConnected(false);
-      setIsAuthorized(false);
-      setSocket(null);
-    };
-
-    ws.onerror = () => {
-      setError('WebSocket connection error');
-    };
-
-    setSocket(ws);
+    connect();
 
     return () => {
-      ws.close();
+      if (ws) ws.close();
+      clearTimeout(reconnectTimeout);
     };
   }, []);
 
