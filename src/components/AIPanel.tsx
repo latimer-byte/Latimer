@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, TrendingUp, TrendingDown, Minus, Loader2 } from "lucide-react";
-import { analyzeMarket } from "@/src/services/gemini";
-import { Tick } from "@/src/hooks/useDeriv";
+import { analyzeMarket } from "@/services/gemini";
+import { Tick } from "@/hooks/useDeriv";
 import { motion, AnimatePresence } from "motion/react";
 
 interface AIPanelProps {

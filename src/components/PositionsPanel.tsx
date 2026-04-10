@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Position } from "@/src/hooks/useDeriv";
+import { Position } from "@/hooks/useDeriv";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { History, TrendingUp, TrendingDown, Clock } from "lucide-react";
 

@@ -5,7 +5,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ActiveSymbol } from "@/src/hooks/useDeriv";
+import { ActiveSymbol } from "@/hooks/useDeriv";
 
 interface MarketSelectorProps {
   symbols: ActiveSymbol[];

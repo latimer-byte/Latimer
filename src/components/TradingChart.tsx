@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
   ReferenceLine
 } from 'recharts';
-import { Tick } from '@/src/hooks/useDeriv';
+import { Tick } from '@/hooks/useDeriv';
 import { format } from 'date-fns';
 
 interface TradingChartProps {
